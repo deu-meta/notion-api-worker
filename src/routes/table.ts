@@ -1,24 +1,14 @@
 import { fetchPageById, fetchTableData, fetchNotionUsers } from "../api/notion";
 import { parsePageId, getNotionValue } from "../api/utils";
-import {
-  RowContentType,
-  CollectionType,
-  RowType,
-  HandlerRequest,
-} from "../api/types";
-import { createResponse } from "../response";
+import { RowContentType, CollectionType, RowType } from "../api/types";
+import { RequestHandler } from "express";
 
 export const getTableData = async (
   collection: CollectionType,
   collectionViewId: string,
-  notionToken?: string,
   raw?: boolean
 ) => {
-  const table = await fetchTableData(
-    collection.value.id,
-    collectionViewId,
-    notionToken
-  );
+  const table = await fetchTableData(collection.value.id, collectionViewId);
 
   const collectionRows = collection.value.schema;
   const collectionColKeys = Object.keys(collectionRows);
@@ -56,16 +46,15 @@ export const getTableData = async (
   return { rows, schema: collectionRows };
 };
 
-export async function tableRoute(req: HandlerRequest) {
+export const tableRoute: RequestHandler = async (req, res) => {
   const pageId = parsePageId(req.params.pageId);
-  const page = await fetchPageById(pageId!, req.notionToken);
+  const page = await fetchPageById(pageId!);
 
-  if (!page.recordMap.collection)
-    return createResponse(
-      JSON.stringify({ error: "No table found on Notion page: " + pageId }),
-      {},
-      401
-    );
+  if (!page.recordMap.collection) {
+    return res
+      .status(401)
+      .json({ error: "No table found on Notion page: " + pageId });
+  }
 
   const collection = Object.keys(page.recordMap.collection).map(
     (k) => page.recordMap.collection[k]
@@ -77,11 +66,7 @@ export async function tableRoute(req: HandlerRequest) {
     (k) => page.recordMap.collection_view[k]
   )[0];
 
-  const { rows } = await getTableData(
-    collection,
-    collectionView.value.id,
-    req.notionToken
-  );
+  const { rows } = await getTableData(collection, collectionView.value.id);
 
-  return createResponse(rows);
-}
+  return res.json(rows);
+};

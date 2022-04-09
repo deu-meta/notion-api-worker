@@ -1,19 +1,11 @@
+import { apiClient } from "./client";
 import {
-  JSONData,
   NotionUserType,
   LoadPageChunkData,
   CollectionData,
   NotionSearchParamsType,
   NotionSearchResultsType,
 } from "./types";
-
-const NOTION_API = "https://www.notion.so/api/v3";
-
-interface INotionParams {
-  resource: string;
-  body: JSONData;
-  notionToken?: string;
-}
 
 const loadPageChunkBody = {
   limit: 100,
@@ -22,34 +14,13 @@ const loadPageChunkBody = {
   verticalColumns: false,
 };
 
-const fetchNotionData = async <T extends any>({
-  resource,
-  body,
-  notionToken,
-}: INotionParams): Promise<T> => {
-  const res = await fetch(`${NOTION_API}/${resource}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(notionToken && { cookie: `token_v2=${notionToken}` }),
-    },
-    body: JSON.stringify(body),
-  });
-
-  return res.json();
-};
-
 export const fetchPageById = async (pageId: string, notionToken?: string) => {
-  const res = await fetchNotionData<LoadPageChunkData>({
-    resource: "loadPageChunk",
-    body: {
-      pageId,
-      ...loadPageChunkBody,
-    },
-    notionToken,
+  const response = await apiClient.post<LoadPageChunkData>("loadPageChunk", {
+    pageId,
+    ...loadPageChunkBody,
   });
 
-  return res;
+  return response.data;
 };
 
 const queryCollectionBody = {
@@ -76,37 +47,28 @@ const queryCollectionBody = {
 
 export const fetchTableData = async (
   collectionId: string,
-  collectionViewId: string,
-  notionToken?: string
+  collectionViewId: string
 ) => {
-  const table = await fetchNotionData<CollectionData>({
-    resource: "queryCollection",
-    body: {
-      collection: {
-        id: collectionId,
-      },
-      collectionView: {
-        id: collectionViewId,
-      },
-      ...queryCollectionBody,
+  const response = await apiClient.post<CollectionData>("queryCollection", {
+    collection: {
+      id: collectionId,
     },
-    notionToken,
+    collectionView: {
+      id: collectionViewId,
+    },
+    ...queryCollectionBody,
   });
 
-  return table;
+  return response.data;
 };
 
-export const fetchNotionUsers = async (
-  userIds: string[],
-  notionToken?: string
-) => {
-  const users = await fetchNotionData<{ results: NotionUserType[] }>({
-    resource: "getRecordValues",
-    body: {
+export const fetchNotionUsers = async (userIds: string[]) => {
+  const users = (
+    await apiClient.post<{ results: NotionUserType[] }>("getRecordValues", {
       requests: userIds.map((id) => ({ id, table: "notion_user" })),
-    },
-    notionToken,
-  });
+    })
+  ).data;
+
   if (users && users.results) {
     return users.results.map((u) => {
       const user = {
@@ -122,31 +84,23 @@ export const fetchNotionUsers = async (
   return [];
 };
 
-export const fetchBlocks = async (
-  blockList: string[],
-  notionToken?: string
-) => {
-  return await fetchNotionData<LoadPageChunkData>({
-    resource: "syncRecordValues",
-    body: {
-      requests: blockList.map((id) => ({
-        id,
-        table: "block",
-        version: -1,
-      })),
-    },
-    notionToken,
+export const fetchBlocks = async (blockList: string[]) => {
+  const response = await apiClient.post<LoadPageChunkData>("syncRecordValues", {
+    requests: blockList.map((id) => ({
+      id,
+      table: "block",
+      version: -1,
+    })),
   });
+
+  return response.data;
 };
 
-export const fetchNotionSearch = async (
-  params: NotionSearchParamsType,
-  notionToken?: string
-) => {
+export const fetchNotionSearch = async (params: NotionSearchParamsType) => {
   // TODO: support other types of searches
-  return fetchNotionData<{ results: NotionSearchResultsType }>({
-    resource: "search",
-    body: {
+  const response = apiClient.post<{ results: NotionSearchResultsType }>(
+    "search",
+    {
       type: "BlocksInAncestor",
       source: "quick_find_public",
       ancestorId: params.ancestorId,
@@ -165,7 +119,6 @@ export const fetchNotionSearch = async (
       sort: "Relevance",
       limit: params.limit || 20,
       query: params.query,
-    },
-    notionToken,
-  });
+    }
+  );
 };

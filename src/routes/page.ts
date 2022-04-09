@@ -1,12 +1,12 @@
 import { fetchPageById, fetchBlocks } from "../api/notion";
 import { parsePageId } from "../api/utils";
-import { createResponse } from "../response";
 import { getTableData } from "./table";
-import { BlockType, CollectionType, HandlerRequest } from "../api/types";
+import { BlockType, CollectionType } from "../api/types";
+import { RequestHandler } from "express";
 
-export async function pageRoute(req: HandlerRequest) {
+export const pageRoute: RequestHandler = async (req, res) => {
   const pageId = parsePageId(req.params.pageId);
-  const page = await fetchPageById(pageId!, req.notionToken);
+  const page = await fetchPageById(pageId!);
 
   const baseBlocks = page.recordMap.block;
 
@@ -34,7 +34,7 @@ export async function pageRoute(req: HandlerRequest) {
       break;
     }
 
-    const newBlocks = await fetchBlocks(pendingBlocks, req.notionToken).then(
+    const newBlocks = await fetchBlocks(pendingBlocks).then(
       (res) => res.recordMap.block
     );
 
@@ -55,11 +55,13 @@ export async function pageRoute(req: HandlerRequest) {
     const pendingCollections = allBlockKeys.flatMap((blockId) => {
       const block = allBlocks[blockId];
 
-      return (block.value && block.value.type === "collection_view") ? [block.value.id] : [];
+      return block.value && block.value.type === "collection_view"
+        ? [block.value.id]
+        : [];
     });
 
     for (let b of pendingCollections) {
-      const collPage = await fetchPageById(b!, req.notionToken);
+      const collPage = await fetchPageById(b!);
 
       const coll = Object.keys(collPage.recordMap.collection).map(
         (k) => collPage.recordMap.collection[k]
@@ -74,7 +76,6 @@ export async function pageRoute(req: HandlerRequest) {
       const { rows, schema } = await getTableData(
         coll,
         collView.value.id,
-        req.notionToken,
         true
       );
 
@@ -95,5 +96,5 @@ export async function pageRoute(req: HandlerRequest) {
     }
   }
 
-  return createResponse(allBlocks);
-}
+  return res.json(allBlocks);
+};

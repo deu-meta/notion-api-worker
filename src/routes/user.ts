@@ -1,9 +1,8 @@
+import { RequestHandler } from "express";
 import { fetchNotionUsers } from "../api/notion";
-import { HandlerRequest } from "../api/types";
-import { createResponse } from "../response";
 
-export async function userRoute(req: HandlerRequest) {
-  const users = await fetchNotionUsers([req.params.userId], req.notionToken);
+export const userRoute: RequestHandler = async (req, res) => {
+  const users = await fetchNotionUsers([req.params.userId]);
 
-  return createResponse(users[0]);
-}
+  return res.json(users[0]);
+};
